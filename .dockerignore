@@ -1,0 +1,12 @@
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
