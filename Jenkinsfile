@@ -1,54 +1,77 @@
 pipeline {
     agent any
-
+    
     environment {
-        // The credentials ID we set in Jenkins for Docker Hub
-        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
-        // Docker Hub registry (change to your Docker Hub username)
-        DOCKER_REGISTRY = 'ken0'
-        // Image name
-        IMAGE_NAME = 'python-hello-world'
-        // Tag for the image (using the build number)
-        IMAGE_TAG = "latest"
+        DOCKER_IMAGE = 'ken0/python-hello-world'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
     }
-
+    
     stages {
         stage('Checkout') {
             steps {
-                // Checkout the code from GitHub
-                checkout scm
+                git branch: 'master', 
+                    url: 'https://github.com/Kazaraal/test-jenkins-docker-build.git',
+                    credentialsId: '' // Only needed for private repos
             }
         }
-
+        
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build the Docker image
-                    dockerImage = docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}", ".")
+                    dockerImage = docker.build("${DOCKER_IMAGE}:${DOCKER_TAG}")
                 }
             }
         }
-
-        stage('Push Docker Image') {
+        
+        stage('Test Docker Image') {
             steps {
                 script {
-                    // Push the Docker image to Docker Hub
-                    docker.withRegistry('', "${DOCKER_CREDENTIALS_ID}") {
+                    // Run the container and capture output
+                    def output = sh(
+                        script: "docker run --rm ${DOCKER_IMAGE}:${DOCKER_TAG}",
+                        returnStdout: true
+                    ).trim()
+                    
+                    // Verify the output contains expected text
+                    if (!output.contains('Hello, World from Docker!')) {
+                        error 'Docker container test failed!'
+                    }
+                    
+                    echo "Test passed! Output: ${output}"
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    docker.withRegistry('', 'docker-hub-credentials') {
                         dockerImage.push()
+                        dockerImage.push('latest')
                     }
                 }
             }
         }
-    }
-
-    post {
-        always {
-            // Clean up built images to save disk space
-            script {
-                if (dockerImage) {
-                    dockerImage.forceRemove()
+        
+        stage('Cleanup') {
+            steps {
+                script {
+                    // Remove the local image to save space
+                    sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
                 }
             }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline completed!'
+        }
+        success {
+            echo "Successfully built and pushed ${DOCKER_IMAGE}:${DOCKER_TAG}"
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
