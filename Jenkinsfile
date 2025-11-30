@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'jenkins-docker-ken:1.0'
+            image 'ken0k/jenkins-docker-ken:1.0'
             args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
